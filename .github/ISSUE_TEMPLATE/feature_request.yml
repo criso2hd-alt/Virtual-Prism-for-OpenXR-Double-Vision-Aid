@@ -1,0 +1,8 @@
+name: Suggestion
+description: An idea to make it better
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes: {label: What would you like to see?}
+    validations: {required: true}

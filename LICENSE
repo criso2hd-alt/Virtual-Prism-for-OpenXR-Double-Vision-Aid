@@ -1,0 +1,45 @@
+Virtual Prism for OpenXR (Double Vision Aid) - Source-Available License
+
+Copyright (c) 2026 Chris Soares. All rights reserved except as granted below.
+
+Official home of this project: https://github.com/criso2hd-alt/Virtual-Prism-for-OpenXR-Double-Vision-Aid
+
+1. FREE TO USE
+   You may download the official release from the official home above and use it
+   for free, for any personal purpose, on any number of your own computers.
+
+2. YOU MAY READ AND LEARN
+   You may read, study and build the source code for your own personal use, and
+   quote short excerpts with credit for discussion, review or education.
+
+3. YOU MAY SUGGEST CHANGES
+   You may open issues and pull requests on the official repository. You may fork
+   the repository on GitHub for the sole purpose of preparing a pull request or
+   for private experiments. By submitting a contribution you give the copyright
+   holder a perpetual, worldwide, royalty-free license to use, modify and
+   distribute it as part of this project, and confirm you have the right to do so.
+
+4. WHAT YOU MAY NOT DO
+   Without the copyright holder's prior written permission, you may not:
+   a. distribute, upload, mirror or publish this software, or any modified or
+      derived version of it (in source or binary form), anywhere other than the
+      official home above;
+   b. sell, rent or otherwise charge for it or any derived work;
+   c. remove, hide, replace or alter the author credit, the project name, the
+      logo, the links to the official home, or the "Buy me a coffee" support
+      link or banner, in the program, its documentation or its distribution;
+   d. present the software or any part of it as your own work;
+   e. use the project name or logo for another product.
+
+5. NO WARRANTY, NOT A MEDICAL DEVICE
+   The software is provided "as is", without warranty of any kind. It is not a
+   medical device and does not diagnose, treat or cure any condition. Use it at
+   your own risk and take breaks if VR is uncomfortable. The copyright holder is
+   not liable for any claim or damages arising from its use.
+
+6. THIRD-PARTY COMPONENTS
+   This project uses the Khronos OpenXR SDK and loader (Apache-2.0 / MIT), which
+   remain under their own licenses.
+
+7. TERMINATION
+   Your rights under this license end automatically if you break its terms.

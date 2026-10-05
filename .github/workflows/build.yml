@@ -1,0 +1,24 @@
+name: Build
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S . -B build -A x64
+      - name: Build
+        run: cmake --build build --config Release --target VirtualPrism
+      - uses: actions/upload-artifact@v4
+        with:
+          name: VirtualPrism-win64
+          path: |
+            build/Release/VirtualPrism.exe
+            build/Release/XR_APILAYER_NOVENDOR_virtual_prism.dll
+            build/Release/XR_APILAYER_NOVENDOR_virtual_prism.json
+            build/Release/openxr_loader.dll

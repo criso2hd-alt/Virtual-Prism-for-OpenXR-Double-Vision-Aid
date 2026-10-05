@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>Virtual Prism for OpenXR</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1b1f3a"/><stop offset="1" stop-color="#0b0d1c"/>
+    </linearGradient>
+    <clipPath id="left"><circle cx="206" cy="256" r="118"/></clipPath>
+  </defs>
+  <rect width="512" height="512" rx="104" fill="url(#bg)"/>
+  <!-- the two eyes' images: left = red, right = cyan; where they overlap they fuse to white -->
+  <circle cx="206" cy="256" r="118" fill="#ff4646"/>
+  <circle cx="306" cy="256" r="118" fill="#28dcff"/>
+  <circle cx="306" cy="256" r="118" fill="#ffffff" clip-path="url(#left)"/>
+  <!-- prism, sitting where the two images fuse -->
+  <path d="M256 190 L326 318 L186 318 Z" fill="#0b0d1c" fill-opacity=".14" stroke="#0b0d1c" stroke-width="13" stroke-linejoin="round"/>
+</svg>
