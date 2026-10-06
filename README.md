@@ -55,7 +55,7 @@ Good to know:
 - **Only the game is corrected, not the Quest menus.** The Quest Link home, dashboard and system menus are drawn by Meta, not by
   the game, so they will still look doubled. Start your game, then enjoy the corrected image once you are in it.
 - **Older games often do not use OpenXR** (they use the Oculus SDK or SteamVR/OpenVR directly), so the correction does nothing
-  for them. Look for an OpenXR option in the game's settings or launch options. For OpenVR games, a translation tool such as
+  for them. This is common for older Meta (Oculus) store games from the Rift era, which were built on the Oculus SDK. Look for an OpenXR option in the game's settings or launch options. For OpenVR games, a translation tool such as
   [OpenComposite](https://gitlab.com/znixian/OpenOVR) may let them run on OpenXR, in which case the correction applies (not tested).
 - **How to check whether a game uses OpenXR:** start the game, then open `%APPDATA%\VirtualPrismOpenXR\layer.log`. If the game's
   `.exe` is listed with a new "layer loaded" line, it uses OpenXR and is being corrected. If it is not listed, it does not use OpenXR.
