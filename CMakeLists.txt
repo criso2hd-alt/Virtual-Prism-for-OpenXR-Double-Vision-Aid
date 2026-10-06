@@ -30,13 +30,13 @@ target_compile_definitions(${LAYER_NAME} PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 
 # ---- Settings + VR calibration app ----
 add_executable(VirtualPrism WIN32
-  src/app/main.cpp src/app/vr_calibration.cpp src/app/scenes.cpp src/app/app.rc)
+  src/app/main.cpp src/app/vr_calibration.cpp src/app/scenes.cpp src/app/room.cpp src/app/app.rc)
 target_include_directories(VirtualPrism PRIVATE
   src/common)
 target_compile_options(VirtualPrism PRIVATE /utf-8)
 target_compile_definitions(VirtualPrism PRIVATE NOMINMAX UNICODE _UNICODE)
 target_link_libraries(VirtualPrism PRIVATE openxr_loader
-  d3d11 dxgi gdiplus comctl32 user32 gdi32 advapi32 shell32 ole32)
+  d3d11 dxgi d3dcompiler gdiplus comctl32 user32 gdi32 advapi32 shell32 ole32)
 
 # The manifest sits next to the layer DLL / exe.
 add_custom_command(TARGET VirtualPrism POST_BUILD

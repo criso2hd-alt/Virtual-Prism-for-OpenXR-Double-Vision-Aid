@@ -30,7 +30,7 @@ const wchar_t* kLayerName = L"XR_APILAYER_NOVENDOR_virtual_prism";
 const wchar_t* kRegKey = L"SOFTWARE\\Khronos\\OpenXR\\1\\ApiLayers\\Implicit";
 
 enum {
-    ID_ENABLE = 100, ID_SAVE, ID_START, ID_STOP, ID_INSTALL, ID_UNINSTALL, ID_STATUS, ID_LAYERSTATE,
+    ID_ENABLE = 100, ID_SAVE, ID_START, ID_STOP, ID_INSTALL, ID_UNINSTALL, ID_HELP, ID_STATUS, ID_LAYERSTATE,
     ID_EYE_BASE = 200  // + eye*10 + {0: H edit, 1: H base, 2: V edit, 3: V base, 4: rotation edit}
 };
 constexpr UINT WM_VR_STATUS = WM_APP + 1, WM_VR_DONE = WM_APP + 2;
@@ -364,6 +364,46 @@ void PaintBranding(HDC dc) {
     }
 }
 
+// ---- Global hotkeys: fine-tune the correction while a game is running ----
+// Ctrl+Alt+Numpad (NumLock on): 4/6 = H, 8/2 = V, 7/9 = rotate, 5 = reset eye, 0 = other eye, + = step size, * = on/off
+enum { HK_LEFT = 1, HK_RIGHT, HK_UP, HK_DOWN, HK_ROT_CCW, HK_ROT_CW, HK_RESET, HK_EYE, HK_STEP, HK_TOGGLE };
+int g_hkEye = 1;  // 0 left, 1 right
+bool g_hkCoarse = false;
+
+void RegisterHotkeys(HWND hwnd) {
+    const struct { int id; UINT vk; } keys[] = {
+        {HK_LEFT, VK_NUMPAD4}, {HK_RIGHT, VK_NUMPAD6}, {HK_UP, VK_NUMPAD8}, {HK_DOWN, VK_NUMPAD2},
+        {HK_ROT_CCW, VK_NUMPAD7}, {HK_ROT_CW, VK_NUMPAD9}, {HK_RESET, VK_NUMPAD5}, {HK_EYE, VK_NUMPAD0},
+        {HK_STEP, VK_ADD}, {HK_TOGGLE, VK_MULTIPLY}};
+    for (auto& k : keys) RegisterHotKey(hwnd, k.id, MOD_CONTROL | MOD_ALT, k.vk);
+}
+
+void HandleHotkey(int id) {
+    Config c = LoadConfig();
+    EyeCorrection& e = c.eye[g_hkEye];
+    float st = g_hkCoarse ? 0.5f : 0.1f;
+    switch (id) {
+        case HK_LEFT: e.hPrism -= st; break;
+        case HK_RIGHT: e.hPrism += st; break;
+        case HK_UP: e.vPrism += st; break;
+        case HK_DOWN: e.vPrism -= st; break;
+        case HK_ROT_CW: e.rollDeg += st; break;
+        case HK_ROT_CCW: e.rollDeg -= st; break;
+        case HK_RESET: e = EyeCorrection(); break;
+        case HK_EYE: g_hkEye ^= 1; break;
+        case HK_STEP: g_hkCoarse = !g_hkCoarse; break;
+        case HK_TOGGLE: c.enabled = !c.enabled; break;
+    }
+    SaveConfig(c);
+    if (!g_vrRunning) WriteGui(c);
+    wchar_t msg[200];
+    swprintf_s(msg, L"%s  |  Adjusting the %s eye, step %s  |  H %+.2f\u0394  V %+.2f\u0394  Rot %+.2f\u00B0",
+               c.enabled ? L"Correction ON" : L"Correction OFF", g_hkEye ? L"RIGHT" : L"LEFT",
+               g_hkCoarse ? L"coarse" : L"fine", c.eye[g_hkEye].hPrism, c.eye[g_hkEye].vPrism,
+               c.eye[g_hkEye].rollDeg);
+    SetStatus(msg);
+}
+
 void BuildUi() {
     int dpi = g_dpi;
     NONCLIENTMETRICSW ncm = {sizeof(ncm)};
@@ -405,7 +445,9 @@ void BuildUi() {
     Add(L"STATIC", L"", 0, 20, 328, 560, 20, ID_LAYERSTATE);
     Add(L"BUTTON", L"Install layer", BS_PUSHBUTTON | WS_TABSTOP, 20, 352, 130, 30, ID_INSTALL);
     Add(L"BUTTON", L"Uninstall layer", BS_PUSHBUTTON | WS_TABSTOP, 160, 352, 130, 30, ID_UNINSTALL);
-    Add(L"STATIC", L"Ready.", SS_LEFT, 20, 398, 560, 44, ID_STATUS);
+    Add(L"BUTTON", L"How to connect...", BS_PUSHBUTTON | WS_TABSTOP, 300, 352, 140, 30, ID_HELP);
+    Add(L"STATIC", L"Ready.", SS_LEFT, 20, 396, 560, 36, ID_STATUS);
+    Add(L"STATIC", L"Tune while playing (NumLock on): Ctrl+Alt+Numpad 4/6 left/right, 8/2 up/down, 7/9 rotate, 5 reset eye, 0 other eye, + step size, * on/off", SS_LEFT, 20, 434, 560, 32);
 
     WriteGui(LoadConfig());
     RefreshLayerState();
@@ -419,7 +461,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             g_hideBanner = GetPrivateProfileIntW(L"General", L"HideDonateBanner", 0, ConfigPath().c_str()) != 0;
             SendMessageW(hwnd, WM_SETICON, ICON_BIG, (LPARAM)MakeLogoIcon(32));
             SendMessageW(hwnd, WM_SETICON, ICON_SMALL, (LPARAM)MakeLogoIcon(16));
-            BuildUi(); SetTimer(hwnd, kPreviewTimer, 33, nullptr); return 0;
+            BuildUi();
+            RegisterHotkeys(hwnd); SetTimer(hwnd, kPreviewTimer, 33, nullptr); return 0;
         case WM_LBUTTONDOWN: {
             POINT p = {(short)LOWORD(lp), (short)HIWORD(lp)};
             if (!g_hideBanner && PtInRect(&g_bannerClose, p)) DismissBanner();
@@ -437,6 +480,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             }
             break;
         }
+        case WM_HOTKEY: HandleHotkey((int)wp); return 0;
         case WM_TIMER: {
             if (g_vrRunning || g_previewDirty) {
                 RECT pr = {S(kPreviewArea.left), S(kPreviewArea.top), S(kPreviewArea.right), S(kPreviewArea.bottom)};
@@ -476,6 +520,25 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 }
                 case ID_SAVE: SaveConfig(ReadGui()); SetStatus(L"Settings saved."); break;
                 case ID_START: StartVr(); break;
+                case ID_HELP: {
+                    std::wstring help = L"CONNECTING YOUR HEADSET (Meta Quest 2 / 3)\n\n"
+        L"1. Install the Meta Quest Link app on your PC and sign in.\n"
+        L"2. In the Link app: Settings > General > \"Set Meta Quest Link as active OpenXR runtime\".\n"
+        L"3. Connect the headset to the PC:\n"
+        L"     - Quest Link: USB cable (a good USB 3 cable), then choose \"Quest Link\" in the headset.\n"
+        L"     - Air Link: PC and headset on the same 5 GHz Wi-Fi, Quest > Settings > Quest Link > Air Link.\n"
+        L"     - Virtual Desktop: run SteamVR, and in SteamVR set it as the active OpenXR runtime.\n"
+        L"4. Here: click \"Install layer\" (once), then \"Start VR calibration\" and put the headset on.\n"
+        L"5. Align the images, hold the right trigger to save. Then start your game from the PC.\n\n"
+        L"Good to know:\n"
+        L"- It works with games that use OpenXR on the PC (restart a game after installing the layer).\n"
+        L"- Games that only support SteamVR/OpenVR are not affected: look for an OpenXR option.\n"
+        L"- Games installed on the headset itself (standalone) cannot be corrected: Quest does not allow it.\n"
+        L"- Tune while playing with Ctrl+Alt+Numpad keys (listed in the window).\n"
+        L"- Full guide: " + std::wstring(brand::kRepoUrl);
+                    MessageBoxW(hwnd, help.c_str(), L"How to connect your headset", MB_OK | MB_ICONINFORMATION);
+                    break;
+                }
                 case ID_STOP: g_cancel = true; SetStatus(L"Stopping VR session..."); break;
                 case ID_INSTALL: {
                     std::wstring err;

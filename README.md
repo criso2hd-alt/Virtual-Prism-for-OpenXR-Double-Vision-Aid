@@ -37,6 +37,25 @@ second, so the on/off checkbox works live (handy when someone else wants to use 
 
 While you calibrate, the desktop window shows a live spectator view of what you see, so a helper can follow along.
 
+## Connecting your headset (Meta Quest 2 / 3)
+This tool runs on your **Windows PC** and corrects what the PC sends to the headset, so you need to run your
+games from the PC.
+
+1. Install the [Meta Quest Link app](https://www.meta.com/help/quest/articles/headsets-and-accessories/oculus-link/set-up-link/) on your PC and sign in.
+2. In the Link app go to **Settings > General** and click **Set Meta Quest Link as active OpenXR runtime**.
+3. Connect the headset to the PC, with one of:
+   - **Quest Link:** a USB 3 cable, then choose *Quest Link* inside the headset.
+   - **Air Link:** PC and headset on the same 5 GHz Wi-Fi; in the headset open *Settings > Quest Link > Air Link*.
+   - **Virtual Desktop:** start SteamVR and set it as the active OpenXR runtime in SteamVR's settings.
+4. Run `VirtualPrism.exe`, click **Install layer** (once), then **Start VR calibration** and put the headset on.
+5. Align the images, hold the right trigger to save, then start your game from the PC.
+
+Good to know:
+- It works with games that use **OpenXR** on the PC. Restart a game that was already running when you installed the layer.
+- Games that only support SteamVR/OpenVR are not affected; look for an OpenXR option in the game.
+- Games installed **on the headset itself** (standalone Quest apps) cannot be corrected. Android does not let one app change
+  what another app draws, so a standalone version is not possible. Use the PC.
+
 ## Use
 1. Run `VirtualPrism.exe`, click **Install layer** (per-user, no admin needed).
 2. Optionally type your prescription (prism diopters + base direction) and click **Save settings**.
@@ -51,12 +70,20 @@ While you calibrate, the desktop window shows a live spectator view of what you 
 | B / X | rotate counter-clockwise (right / left eye) |
 | Stick click | reset that eye |
 | Left trigger | both eyes / left only / right only |
-| Left grip | next scene |
+| Left grip | next scene (the last one is a 3D room) |
 | Right grip | step size: coarse / medium / fine |
 | Menu button | show / hide help |
 | Hold right trigger | save and exit |
 
 5. Start any OpenXR game. Restart games that were already running when you installed the layer.
+
+**3D test room:** the last scene is a small room you can look and walk around in, with a table close to you and
+colored frames, posts and floor stripes from 0.7 m to 12 m away. Use it to check the settings with real depth and different
+distances; you can still adjust with the sticks while you look around.
+
+**Fine-tune while playing:** keep `VirtualPrism.exe` open and press **Ctrl+Alt+Numpad** (NumLock on): `4`/`6` left/right,
+`8`/`2` up/down, `7`/`9` rotate, `5` reset the eye, `0` switch eye, `+` coarse/fine step, `*` turn the correction on/off.
+Changes reach the game within half a second.
 
 Units: horizontal/vertical values are prism diopters (1 = 1 cm at 1 m, about 0.57 degrees); rotation is in degrees.
 

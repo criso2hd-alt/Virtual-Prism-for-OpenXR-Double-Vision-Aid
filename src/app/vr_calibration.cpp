@@ -20,6 +20,7 @@
 #include <openxr/openxr.h>
 #include <openxr/openxr_platform.h>
 
+#include "room.h"
 #include "scenes.h"
 
 using Microsoft::WRL::ComPtr;
@@ -138,6 +139,8 @@ VrResult RunVrCalibration(const Config& start, std::atomic<bool>& cancel,
     XrSession session = XR_NULL_HANDLE;
     XrSpace viewSpace = XR_NULL_HANDLE;
     XrSwapchain swapchains[2] = {XR_NULL_HANDLE, XR_NULL_HANDLE};
+    XrSwapchain roomSwap[2] = {XR_NULL_HANDLE, XR_NULL_HANDLE};
+    XrSpace stageSpace = XR_NULL_HANDLE;
     XrActionSet actionSet = XR_NULL_HANDLE;
 
     // The correction layer must not be applied to the calibration app itself.
@@ -201,6 +204,15 @@ VrResult RunVrCalibration(const Config& start, std::atomic<bool>& cancel,
         rsci.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_VIEW;
         rsci.poseInReferenceSpace.orientation.w = 1;
         Check(xrCreateReferenceSpace(session, &rsci, &viewSpace), "xrCreateReferenceSpace");
+
+        // World-locked space for the 3D test room: the floor-level STAGE if the runtime has one, else LOCAL.
+        bool haveStage = true;
+        rsci.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_STAGE;
+        if (XR_FAILED(xrCreateReferenceSpace(session, &rsci, &stageSpace))) {
+            haveStage = false;
+            rsci.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_LOCAL;
+            Check(xrCreateReferenceSpace(session, &rsci, &stageSpace), "xrCreateReferenceSpace(local)");
+        }
 
         // ---- Swapchains (one per eye) ----
         uint32_t fmtCount = 0;
@@ -320,6 +332,61 @@ VrResult RunVrCalibration(const Config& start, std::atomic<bool>& cancel,
             return s.isActive ? s.currentState : XrVector2f{0, 0};
         };
 
+        // ---- 3D test room (created the first time the scene is selected) ----
+        RoomRenderer room;
+        bool roomReady = false, roomLaidOut = false;
+        uint32_t roomW = 0, roomH = 0;
+        std::vector<XrSwapchainImageD3D11KHR> roomImages[2];
+        std::vector<ComPtr<ID3D11RenderTargetView>> roomRtv[2];
+        ComPtr<ID3D11DepthStencilView> roomDsv[2];
+        float roomYaw = 0, roomOx = 0, roomOz = 0;
+        auto ensureRoom = [&]() -> bool {
+            if (roomReady) return true;
+            if (!room.Init(device.Get(), ctx.Get())) return false;
+            uint32_t vn = 0;
+            XrViewConfigurationView cv[2] = {{XR_TYPE_VIEW_CONFIGURATION_VIEW}, {XR_TYPE_VIEW_CONFIGURATION_VIEW}};
+            if (XR_FAILED(xrEnumerateViewConfigurationViews(instance, systemId,
+                                                           XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, 2, &vn, cv)))
+                return false;
+            roomW = cv[0].recommendedImageRectWidth;
+            roomH = cv[0].recommendedImageRectHeight;
+            for (int e = 0; e < 2; e++) {
+                XrSwapchainCreateInfo sc{XR_TYPE_SWAPCHAIN_CREATE_INFO};
+                sc.usageFlags = XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT | XR_SWAPCHAIN_USAGE_SAMPLED_BIT;
+                sc.format = format;
+                sc.sampleCount = 1;
+                sc.width = roomW;
+                sc.height = roomH;
+                sc.faceCount = sc.arraySize = sc.mipCount = 1;
+                if (XR_FAILED(xrCreateSwapchain(session, &sc, &roomSwap[e]))) return false;
+                uint32_t n = 0;
+                xrEnumerateSwapchainImages(roomSwap[e], 0, &n, nullptr);
+                roomImages[e].assign(n, {XR_TYPE_SWAPCHAIN_IMAGE_D3D11_KHR});
+                xrEnumerateSwapchainImages(roomSwap[e], n, &n, (XrSwapchainImageBaseHeader*)roomImages[e].data());
+                for (auto& img : roomImages[e]) {
+                    D3D11_RENDER_TARGET_VIEW_DESC rd = {};
+                    rd.Format = (DXGI_FORMAT)format;
+                    rd.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+                    ComPtr<ID3D11RenderTargetView> v;
+                    if (FAILED(device->CreateRenderTargetView(img.texture, &rd, &v))) return false;
+                    roomRtv[e].push_back(v);
+                }
+                D3D11_TEXTURE2D_DESC td = {};
+                td.Width = roomW;
+                td.Height = roomH;
+                td.MipLevels = td.ArraySize = 1;
+                td.Format = DXGI_FORMAT_D32_FLOAT;
+                td.SampleDesc.Count = 1;
+                td.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+                ComPtr<ID3D11Texture2D> depth;
+                if (FAILED(device->CreateTexture2D(&td, nullptr, &depth)) ||
+                    FAILED(device->CreateDepthStencilView(depth.Get(), nullptr, &roomDsv[e])))
+                    return false;
+            }
+            roomReady = true;
+            return true;
+        };
+
         // ---- State ----
         UiState ui;
         ui.values = start;
@@ -374,6 +441,8 @@ VrResult RunVrCalibration(const Config& start, std::atomic<bool>& cancel,
 
             std::vector<const XrCompositionLayerBaseHeader*> layers;
             XrCompositionLayerQuad quads[2];
+            XrCompositionLayerProjection projLayer{XR_TYPE_COMPOSITION_LAYER_PROJECTION};
+            XrCompositionLayerProjectionView projViews[2];
 
             if (fs.shouldRender) {
                 float dt = lastTime ? (float)std::clamp((fs.predictedDisplayTime - lastTime) * 1e-9, 0.0, 0.1) : 0.0f;
@@ -444,6 +513,68 @@ VrResult RunVrCalibration(const Config& start, std::atomic<bool>& cancel,
                     }))
                     haveImage = true;
 
+                // -- 3D test room: render both eyes from the head pose turned by the inverse correction and
+                //    submit the real pose, exactly like the API layer does for games --
+                if (ui.scene == kRoomScene && ensureRoom()) {
+                    XrViewLocateInfo rli{XR_TYPE_VIEW_LOCATE_INFO};
+                    rli.viewConfigurationType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
+                    rli.displayTime = fs.predictedDisplayTime;
+                    rli.space = stageSpace;
+                    XrViewState rvs{XR_TYPE_VIEW_STATE};
+                    XrView rv[2] = {{XR_TYPE_VIEW}, {XR_TYPE_VIEW}};
+                    uint32_t rc = 0;
+                    if (XR_SUCCEEDED(xrLocateViews(session, &rli, &rvs, 2, &rc, rv)) && rc == 2) {
+                        if (!roomLaidOut) {  // put the room in front of wherever the wearer is looking right now
+                            roomLaidOut = true;
+                            roomOx = (rv[0].pose.position.x + rv[1].pose.position.x) / 2;
+                            roomOz = (rv[0].pose.position.z + rv[1].pose.position.z) / 2;
+                            float headY = (rv[0].pose.position.y + rv[1].pose.position.y) / 2;
+                            const float fw[3] = {0, 0, -1};
+                            float f[3];
+                            Rotate(Quat{rv[0].pose.orientation.x, rv[0].pose.orientation.y,
+                                        rv[0].pose.orientation.z, rv[0].pose.orientation.w}, fw, f);
+                            roomYaw = (float)std::atan2(-f[0], -f[2]);
+                            float floorY = haveStage ? 0.0f : headY - 1.6f;
+                            if (headY - floorY < 0.6f) floorY = headY - 1.2f;
+                            room.SetLayout(floorY, headY);
+                        }
+                        Quat yawInv = AxisAngle(0, 1, 0, -roomYaw);
+                        for (int e = 0; e < 2; e++) {
+                            const XrPosef& P = rv[e].pose;
+                            Quat q = Mul(Quat{P.orientation.x, P.orientation.y, P.orientation.z, P.orientation.w},
+                                         Conj(ShiftRotation(ui.values.eye[e])));
+                            const float rel[3] = {P.position.x - roomOx, P.position.y, P.position.z - roomOz};
+                            float pos[3];
+                            Rotate(yawInv, rel, pos);
+                            float vp[16];
+                            BuildViewProj(pos, Mul(yawInv, q), std::tan(rv[e].fov.angleLeft),
+                                          std::tan(rv[e].fov.angleRight), std::tan(rv[e].fov.angleUp),
+                                          std::tan(rv[e].fov.angleDown), vp);
+                            uint32_t idx;
+                            XrSwapchainImageAcquireInfo ai{XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO};
+                            Check(xrAcquireSwapchainImage(roomSwap[e], &ai, &idx), "xrAcquireSwapchainImage");
+                            XrSwapchainImageWaitInfo wi{XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO};
+                            wi.timeout = XR_INFINITE_DURATION;
+                            Check(xrWaitSwapchainImage(roomSwap[e], &wi), "xrWaitSwapchainImage");
+                            bool hidden = ui.eyeMode != 0 && ui.eyeMode != e + 1;
+                            room.Draw(roomRtv[e][idx].Get(), roomDsv[e].Get(), (int)roomW, (int)roomH, vp, hidden);
+                            XrSwapchainImageReleaseInfo ri{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
+                            Check(xrReleaseSwapchainImage(roomSwap[e], &ri), "xrReleaseSwapchainImage");
+
+                            projViews[e] = {XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW};
+                            projViews[e].pose = P;  // the real pose, not the turned one
+                            projViews[e].fov = rv[e].fov;
+                            projViews[e].subImage.swapchain = roomSwap[e];
+                            projViews[e].subImage.imageRect = {{0, 0}, {(int32_t)roomW, (int32_t)roomH}};
+                        }
+                        projLayer.space = stageSpace;
+                        projLayer.viewCount = 2;
+                        projLayer.views = projViews;
+                        layers.push_back((const XrCompositionLayerBaseHeader*)&projLayer);
+                        ctx->Flush();
+                    }
+                }
+
                 // -- Place one head-locked quad per eye, shifted by the eye's correction --
                 XrViewLocateInfo vli{XR_TYPE_VIEW_LOCATE_INFO};
                 vli.viewConfigurationType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
@@ -472,6 +603,7 @@ VrResult RunVrCalibration(const Config& start, std::atomic<bool>& cancel,
                         XrCompositionLayerQuad& q = quads[e];
                         q = {XR_TYPE_COMPOSITION_LAYER_QUAD};
                         q.space = viewSpace;
+                        if (ui.scene == kRoomScene) q.layerFlags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT;
                         q.eyeVisibility = e == 0 ? XR_EYE_VISIBILITY_LEFT : XR_EYE_VISIBILITY_RIGHT;
                         q.subImage.swapchain = swapchains[e];
                         q.subImage.imageRect = {{0, 0}, {kImageSize, kImageSize}};
@@ -501,6 +633,8 @@ VrResult RunVrCalibration(const Config& start, std::atomic<bool>& cancel,
 
     if (preview) { std::lock_guard<std::mutex> l(preview->m); preview->active = false; }
     for (auto& s : swapchains) if (s) xrDestroySwapchain(s);
+    for (auto& s : roomSwap) if (s) xrDestroySwapchain(s);
+    if (stageSpace) xrDestroySpace(stageSpace);
     if (actionSet) xrDestroyActionSet(actionSet);
     if (viewSpace) xrDestroySpace(viewSpace);
     if (session) xrDestroySession(session);

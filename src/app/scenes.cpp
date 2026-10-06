@@ -22,7 +22,8 @@ constexpr float kMaxDeg = 40.0f;
 
 const wchar_t* kSceneNames[] = {
     L"Color grid (left = red, right = cyan)", L"White grid (for fusing)",   L"Dot lattice (for fusing)",
-    L"Target rings (for fusing)",             L"Lines + tilt (rotation check)", L"Reading chart"};
+    L"Target rings (for fusing)",             L"Lines + tilt (rotation check)", L"Reading chart",
+    L"3D test room (look around, near and far)"};
 const wchar_t* kStepNames[] = {L"coarse", L"medium", L"fine"};
 
 float Px(float deg) { return kCenter + kScale * std::tan(deg * (float)kPi / 180.0f); }
@@ -186,12 +187,12 @@ void DrawHud(Graphics& g, const UiState& ui, int eye) {
             L"B / X ............. rotate counter-clockwise (right / left eye)",
             L"Stick click ....... reset that eye to zero",
             L"Left trigger ...... both eyes / left only / right only",
-            L"Left grip ......... next scene",
+            L"Left grip ......... next scene (last one: 3D room)",
             L"Right grip ........ step size: coarse / medium / fine",
             L"Menu button ....... show / hide this help",
             L"Right trigger ..... HOLD to save and exit",
             L"",
-            L"Tip: keep your better eye at zero and adjust the other one."};
+            L"Keep your head LEVEL and look straight ahead while aligning."};
         float y = hy + 26;
         for (int i = 0; i < 17; i++) {
             g.DrawString(lines[i], -1, i == 0 ? &big : &font, PointF(hx + 40, y), i == 0 ? &yellow : &white);
@@ -221,7 +222,8 @@ void RenderEyeImage(int eye, const UiState& ui, uint32_t* bgra) {
     Graphics g(&bmp);
     g.SetSmoothingMode(SmoothingModeAntiAlias);
     g.SetTextRenderingHint(TextRenderingHintAntiAliasGridFit);
-    g.Clear(Color(255, 0, 0, 0));
+    // The 3D room is drawn separately; here the image is transparent except for the HUD.
+    g.Clear(ui.scene == kRoomScene ? Color(0, 0, 0, 0) : Color(255, 0, 0, 0));
 
     bool coded = ui.scene == 0;
     Color col = EyeColor(eye, coded);
@@ -231,7 +233,8 @@ void RenderEyeImage(int eye, const UiState& ui, uint32_t* bgra) {
         case 2: DrawDots(g, col); break;
         case 3: DrawTarget(g, col); break;
         case 4: DrawLines(g, col); break;
-        default: DrawReading(g, col); break;
+        case 5: DrawReading(g, col); break;
+        default: break;
     }
     DrawHud(g, ui, eye);
 }

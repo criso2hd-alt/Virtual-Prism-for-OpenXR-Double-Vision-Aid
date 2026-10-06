@@ -10,6 +10,9 @@ constexpr int kImageSize = 2048;       // per-eye texture is kImageSize x kImage
 constexpr float kQuadDistance = 2.0f;  // meters
 constexpr float kQuadHalfTan = 0.9f;   // quad half-size as tan(angle): about +/-42 degrees
 
+// Scene index of the 3D test room (drawn by the VR loop; the 2D image then only carries the HUD).
+constexpr int kRoomScene = 6;
+
 struct UiState {
     int scene = 0;
     int stepMode = 1;  // 0 coarse, 1 medium, 2 fine

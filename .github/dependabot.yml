@@ -4,3 +4,7 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # One combined PR for all action updates, so they never conflict with each other.
+    groups:
+      github-actions:
+        patterns: ["*"]
