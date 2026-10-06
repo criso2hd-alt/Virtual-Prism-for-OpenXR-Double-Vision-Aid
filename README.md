@@ -52,7 +52,13 @@ games from the PC.
 
 Good to know:
 - It works with games that use **OpenXR** on the PC. Restart a game that was already running when you installed the layer.
-- Games that only support SteamVR/OpenVR are not affected; look for an OpenXR option in the game.
+- **Only the game is corrected, not the Quest menus.** The Quest Link home, dashboard and system menus are drawn by Meta, not by
+  the game, so they will still look doubled. Start your game, then enjoy the corrected image once you are in it.
+- **Older games often do not use OpenXR** (they use the Oculus SDK or SteamVR/OpenVR directly), so the correction does nothing
+  for them. Look for an OpenXR option in the game's settings or launch options. For OpenVR games, a translation tool such as
+  [OpenComposite](https://gitlab.com/znixian/OpenOVR) may let them run on OpenXR, in which case the correction applies (not tested).
+- **How to check whether a game uses OpenXR:** start the game, then open `%APPDATA%\VirtualPrismOpenXR\layer.log`. If the game's
+  `.exe` is listed with a new "layer loaded" line, it uses OpenXR and is being corrected. If it is not listed, it does not use OpenXR.
 - Games installed **on the headset itself** (standalone Quest apps) cannot be corrected. Android does not let one app change
   what another app draws, so a standalone version is not possible. Use the PC.
 
@@ -88,8 +94,9 @@ Changes reach the game within half a second.
 Units: horizontal/vertical values are prism diopters (1 = 1 cm at 1 m, about 0.57 degrees); rotation is in degrees.
 
 ## Limitations
-- Only OpenXR apps. Games that talk directly to OpenVR/SteamVR bypass the layer (use their OpenXR mode,
-  or SteamVR's OpenXR path where available).
+- Only OpenXR apps. Games that talk directly to the Oculus SDK or OpenVR/SteamVR bypass the layer (use their OpenXR mode where
+  they have one).
+- The Meta Quest Link home, dashboard and system menus are not corrected; only the running game is.
 - Only projection layers (the game's 3D view) are corrected, not 2D overlay/quad layers some games use for menus.
 - It shifts the image (field of view at the edge of one eye is lost); it does not bend light like a real prism.
 - Tested design target: Meta Quest 3 over Quest Link (Touch controllers).
